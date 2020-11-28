@@ -1,0 +1,403 @@
+---
+title: "Titanic Project"
+author: "Alexander Hilberer"
+date: "9/10/2020"
+output:
+  html_document: default
+  pdf_document: default
+number_sections: yes
+df_print: paged
+code_folding: show
+toc: yes
+toc_float: yes
+---
+***
+
+```{r Installing and activating all nessesary packages, ommiting those which are already installed.,include=FALSE}
+#include=FALSE hides both the code + the output.
+
+#If the required package isnt installed, install said package. Afterwards active the package.
+if(!require(knitr)){
+    install.packages("knitr")
+    library(knitr)
+}
+#alt + L to collapse all the code you selected, upon clicking on the icon it unfolds.
+#In this collapsed code all the other packages required/used for this code is available.
+if(!require(rmarkdown)){
+    install.packages("rmarkdown")
+    library(rmarkdown)
+}
+
+if(!require(ggplot2)){
+    install.packages("ggplot2")
+    library(ggplot2)
+}
+
+if(!require(tidyr)){
+    install.packages("tidyr")
+    library(tidyr)
+}
+ 
+if(!require(visdat)){
+    install.packages("visdat")
+    library(visdat)
+}
+
+if(!require(mice)){
+    install.packages("mice")
+    library(mice)
+}
+
+if(!require(randomForest)){
+    install.packages("randomForest")
+    library(randomForest)
+}
+
+if(!require(dplyr)){
+    install.packages("dplyr")
+    library(dplyr)
+}
+if(!require(rpart)){
+    install.packages("rpart")
+    library(rpart)
+}
+
+if(!require(rattle)){
+    install.packages("rattle")
+    library(rattle)
+}
+if(!require(caret)){
+    install.packages("caret")
+    library(caret)
+}
+if(!require(e1071)){
+    install.packages("e1071")
+    library(e1071)
+}
+if(!require(ROCR)){
+    install.packages("ROCR")
+    library(ROCR)
+}
+```
+
+##  STEP 1: Importing datasets.
+```{r STEP 1:importing datasets, me}
+#Importing, and saving data sets at the moment required in environment in this case (.csv) files using R's basic read.csv function.
+train = read.csv("C:/Users/Alexander/OneDrive/DataSience Projects/Titanic/Datasets/train.csv")
+```
+
+## STEP 2: Global analisis of the data set.
+```{r STEP 2: Analyzing the data set globally,echo=FALSE}
+#Printing out a summary to globally analyze the data. Hereafter checking the structure of data  its contains characters numeric or integer values.
+summary(train)
+str(train)
+#From str and summary you cna tell train contains a lot of blank values in the data. This code' identifies all the blank values and replaces these wirh a NA. This is only done so the vis_miss plot would work. Data is reloaded at #106
+train[train == ""] <- NA 
+
+#Vissually shows where data is missing and to what extent.
+vis_miss(train, show_perc=TRUE, )+ 
+                #title the figure ( using ggplot2 code inside vismis).
+                labs(title = "Missingness of train data")+ 
+                #Rotate the labels 90 degrees for readability.
+                theme(axis.text.y = element_text(angle = 90),
+                axis.text.x = element_text(angle = 90))
+#Reloaded the data to reset ""<-NA from line 98 otherwise it caused a mess in the barplots later. ()())()()
+```
+
+## STEP 3: Converting and filtering data.
+```{r STEP 3: transmuting characters and logics into factors for ease of use, whilst filtering at the same time (filter 1).}
+#keeping usable data listed here, whilst "non relatable data is set as NULL to remove these". Numeric numbers are kept as integers and numerics to calculate with them.
+train$Survived    <-as.factor(train$Survived)
+train$Pclass      <-as.factor(train$Pclass)
+train$Sex         <-as.factor(train$Sex)
+train$Age         <-as.integer(train$Age)
+train$SibSp       <-as.integer(train$SibSp)
+train$Parch       <-as.integer(train$Parch)
+train$Fare        <-as.numeric(train$Fare)
+train$Embarked    <-as.factor(train$Embarked)
+
+train$Name=NULL   #Has no logical correlation to survival rate (might re-evaluate).
+train$Ticket=NULL #Ticket number has no logical correlation to survival rate.
+train$Cabin=NULL  #Removed due to, the analysis you can see ~75% of data is missing.
+train$PassengerId=NULL  #Has no logical correlation to survival rate.
+
+#Rechecking data, to see if the changes have been applied all characters/logic are now factors.
+summary(train)
+str(train)
+
+```
+
+
+# STEP5: Analyzing variables for correlating values ( visualy )
+## Variable: Sex
+```{r, echo=FALSE}
+#Using barplot() to see all passengers and how many of them died or survived.
+ggplot(data=train, aes(x=Survived, fill="#f8766d")) + 
+        theme(legend.position="none")+ #hides legend ( in this case color code of             fill)
+        ggtitle("Passengers survival count")+
+        theme(plot.title = element_text(hjust = 0.5))+ #center title
+        labs(y= "Count", x = "Survived")+ #naming X and Y axis
+        geom_bar(position = "dodge") + # bars in plot aren't stacked but side by side
+        geom_text(stat='count', aes(label=..count..),
+                  position=position_dodge(width=0.9), 
+                  vjust=+1.6)#vjust vertically adjusts the position of text
+
+ggplot(data=train, aes(x=Survived, fill=Sex)) + ggtitle(
+        "Males/females survival count")+
+        theme(plot.title = element_text(hjust = 0.5))+ 
+        labs(y= "Count", x = "Survived")+ 
+        geom_bar(position = "dodge") + 
+        geom_text(stat='count', aes(label=..count..),
+                  position=position_dodge(width=0.9), vjust=+1.6)
+
+```
+
+## Variable: Pclass
+```{r,echo=FALSE}
+ggplot(data=train, aes(x=Pclass, fill=Pclass)) + 
+        theme(legend.position="none")+
+        ggtitle("Class distribution of passengers")+
+        theme(plot.title = element_text(hjust = 0.5))+ 
+        labs(y= "Count", x = "Class")+ 
+        geom_bar(position = "dodge") + 
+        geom_text(stat='count', aes(label=..count..),
+                  position=position_dodge(width=0.9), vjust=+1.6)
+
+ggplot(data=train, aes(x=Pclass, fill=Survived)) + ggtitle("Survival count by class")+
+        theme(plot.title = element_text(hjust = 0.5))+ 
+        labs(y= "Count", x = "Class")+
+        geom_bar(position = "dodge") + 
+        geom_text(stat='count', aes(label=..count..),
+                  position=position_dodge(width=0.9), vjust=+1.6)
+
+#Here you can see ~ 50 % of 1st and 2nd class passengers survived and about 75% of 3rd class passengers died. Meaning that the conclusion of the 1st/2nd class passengers had the right to leave the ship first can be made.
+
+ggplot(data=train, aes(x=Pclass, fill=Survived)) + 
+        ggtitle("Class distribution of passengers")+
+        scale_y_continuous(labels = scales::percent_format(accuracy = 1))+
+        theme(plot.title = element_text(hjust = 0.5))+
+        labs(y= "Precent", x = "Class")+
+        geom_bar(position = "fill") #makes the y axis per class dependent of max(class         1 2 and 3)
+
+ggplot(data=train, aes(x=Survived, fill=Sex, fill2=Pclass)) + ggtitle(
+        "Survived by sex per class (1st to 3rd)")+
+        theme(plot.title = element_text(hjust = 0.5))+ 
+        labs(y= "Count", x = "Survived")+ 
+        geom_bar(position = "dodge") + 
+        geom_text(stat='count', aes(label=..count..),
+                  position=position_dodge(width=0.9), vjust=+1.6)
+
+```
+
+## Variable: SibSp
+```{r,echo=FALSE}
+ggplot(data=train, aes(x=SibSp, fill=Survived)) + ggtitle("Siblings/Spouses survival count")+
+        theme(plot.title = element_text(hjust = 0.5))+ 
+        labs(y= "Count", x = "Amount of Siblings/Spouse")+ 
+        geom_bar(position = "dodge") +
+        geom_text(stat='count', aes(label=..count..),
+                  position=position_dodge(width=0.9), vjust=-0.2)
+
+ggplot(train, aes(factor(Survived),SibSp)) + geom_boxplot()
+
+# from this you can conclude that people with large abounts of siblings / a spouse on board were less likely to forsake them or split up, and most didn't survive due to this. But taking a second look at this, due to the small amount of people that have >1 sibling on board, this data i would say isnt reliable to conclude the aforementioned statement. Meaning having siblings / a spouse on board most likely did not contribute to survival rate.
+```
+
+## Variable: Parch
+```{r, echo=FALSE}
+ggplot(data=train, aes(x=Parch, fill=Survived)) + ggtitle("Parent/children survival")+
+        theme(plot.title = element_text(hjust = 0.5))+ 
+        labs(y= "Count", x = "Amount of Parent/children")+ 
+        geom_bar(position = "dodge") + 
+        geom_text(stat='count', aes(label=..count..),
+                  position=position_dodge(width=0.9), vjust=-0.2)
+
+ggplot(train, aes(factor(Survived),Parch)) + geom_boxplot()
+
+#Parent/children and siblings and spouse are quite similar.
+#Boxplot stays in, the variable Sibsp and Parch doesnt have a large impact in general. (people >2 parch or sibsp are aprox 1-3% of the total data).
+```
+
+## Variable: Fare
+```{r, echo=FALSE}
+#boxplot is "messed up" due to 1 very high outliner ( someone paid a lot for a ticket).
+ggplot(train, aes(factor(Survived),Fare)) + geom_boxplot()
+
+#people that paid a higher fare had a higher likelihood to survive (kind of makes sense because people that paid more more likely had a higher class/were richer)
+#identified the biggest outliner which was messing up the boxplot
+max(boxplot.stats(train$Fare)$out) 
+
+#Removed the entire row where the outliner was in ( only 1 row ) remaining obs 886
+train = dplyr::anti_join(train,data.frame(dplyr::filter(train, train$Fare == 512.3292 )))
+
+#running the boxplot again with the single high outliner removed ( makes more sense )
+ggplot(train, aes(factor(Survived),Fare)) + geom_boxplot() 
+
+#From this you can read if you paid a higher fare you had a (marginally) higher chance to survive the catastrophy.
+```
+
+## Variable: Embark
+```{r, echo=FALSE}
+ggplot(data=train, aes(x=Embarked, fill=Survived)) + ggtitle(
+        "# of passenger embarking from location")+
+        theme(plot.title = element_text(hjust = 0.5))+ 
+        labs(y= "Count", x = "Location")+ 
+        geom_bar(position = "dodge") + 
+        geom_text(stat='count', aes(label=..count..),
+                  position=position_dodge(width=0.9), vjust=+1.6)
+
+
+```
+
+## Variable: Age
+```{r, echo=FALSE}
+ggplot(train, aes(factor(Survived),Age)) + geom_boxplot()
+
+# sets standard variable so the output will be constant (non randomized, for repeat-ability)
+set.seed(69420)
+#Tried PMM aswell, yielded a lower accuracy rate.
+Test=mice(train[,-1],meth="rf",m=1)
+#use mice on train data set on column 2 to 8 using random forest finding missing data [,-2] selects all column but column 2.
+train_new<-cbind(complete(Test,1),"Survived"=train$Survived)
+#using Cbind "paste" found and saved data in Test and fill in the N.A's in essence.
+densityplot(Test, ~Age)
+#print out a density plot over data set Test for Age
+
+#after inserting imputation ( missing values )
+ggplot(train_new, aes(factor(Survived),Age)) + geom_boxplot()
+
+#boxplots are about even, hence the imputation is succesfull without shifting the data.
+```
+
+# STEP 6: Creating data sets for testing [splitting data ( stratified sampling )]
+```{r, echo=FALSE}
+df_good = train_new[- grep(0, train_new$Survived),] #Copy data with only survived = 1
+
+df_bad = train_new[-grep(1,train_new$Survived),] #Copy data with only survived = 0
+
+df_train_good = sample_frac(df_good,0.7) #Split and took 70% of data surv = 0
+df_train_bad = sample_frac(df_bad,0.7) #Split and took 70% of data surv = 1
+
+df_train = full_join(df_train_good,df_train_bad) #Combined the two data frames into 1
+df_test = anti_join(train_new, df_train)#data that was the same (rows only) didn't get copied over
+
+#this created a new data set that can be used as a "balanced" data frame for creating the algoritms.
+
+Spread_Train_Sampling = table(df_train$Survived)
+writeLines("Spread Trainingdata") 
+prop.table(Spread_Train_Sampling)
+
+
+Spread_Test_Sampling = table(df_test$Survived)
+writeLines("Spread Testdata")
+print(prop.table(Spread_Test_Sampling))
+
+
+#General spread
+General_spread = table(train_new$Survived)
+writeLines("Distribution of whole data set")
+print(prop.table(General_spread))
+
+#As the distribution is about the same for the training, test and general data set. This "bootstrap" can be used.
+
+```
+
+# STEP 7.1: Creating a decision tree predicting the missing data (survival rate)
+```{r, echo=FALSE}
+Tree = rpart(Survived~., df_train, minsplit=2) 
+#creating a decision tree and saving this with minsplit 2 ( minimum amount of 1 variable split into 2 dependent variables )
+
+#Was used to see the output
+#summary(Tree) 
+
+#show a summary of the tree data
+fancyRpartPlot(Tree, sub = "Classification Tree",tweak=1.1)
+#visually show a tree diagram
+
+Prediction_Prob = predict(Tree, df_test, type = "prob")
+#generate a prediction of the data frame according to the tree generated beforehand. Type="prob" cut off is at 50%
+#Predict function applies 
+Prediction_Prob = data.frame(Prediction_Prob)
+
+Prediction_Class = predict(Tree, df_test, type = "class")
+#Prediction_Class = data.frame(Prediction_Class), blanked this out since ROC curve requirse a factor > data.frame 
+
+confusionMatrix(reference = df_test$Survived,  data = Prediction_Class, mode = "everything", positive="1")
+#shows a confusion Matrix comparing false positives etc to true positives and false negatives to true negatives to calculate the accuracy of your tree.
+
+#split--------------------------------------------
+
+Reference = df_test #creating a new reference data frame using test data, to separate it ( its a copy to mess around with ).
+
+Reference$Prob = Prediction_Prob$X1
+#selecting x1 ( survival rate in % ) and saving this column separately.
+
+CheckData = ROCR::prediction(Reference$Prob,
+                             Reference$Survived == 1) 
+# tells the computer that this is the probability that belongs to "1"or prediction_prob$X1
+
+#ROC Curve
+ROC_KURVE = ROCR::performance(CheckData, measure = "tpr", x.measure = "fpr")
+#creating a ROC curve ROC is a probability curve and AUC represents degree or measure of separability. It tells how much model is capable of distinguishing between classes. 
+AUC_ROC = ROCR::performance(CheckData, measure = "auc")@y.values[[1]]
+#creating the surface area of a ROC curve known as the AUC ( important parameter ). Higher the AUC, better the model is at predicting 0s as 0s and 1s as 1s. 
+
+plot(ROC_KURVE, xlab = "False Positive Rate", ylab = "True Positive Rate", main = "ROC-Curve")
+# plotting the ROC curve alongside its AUC dimension.
+
+abline(a = 0, b = 1, col = "red") 
+#draw a line splitting tpr and fpr positive rate.
+
+text(0.8, 0.2, paste("AUC:", toString(round(AUC_ROC, digits = 3)), sep = " "))
+#text adjustments
+
+```
+
+# STEP 7.2: Creating a randomforest model ( a different way )
+```{r, echo=FALSE}
+#Training with caret
+control = trainControl(method="cv", number=10, search="grid")
+
+mm <- model.matrix(Survived~., data = df_test)
+
+tunegrid = expand.grid(mtry = c(.mtry = seq(from = 1, to = ncol(mm) - 1, by = 1)))
+
+RF_Caret_Model_Train = caret::train(Survived~.,
+                                    data = df_train,
+                                    method = "rf",
+                                    metric = "Accuracy",
+                                    trControl = control,
+                                    tuneGrid = tunegrid)
+
+
+
+caret::varImp(RF_Caret_Model_Train)
+
+
+Prediction_Prob = predict(RF_Caret_Model_Train, df_test, type = "prob")
+
+Prediction_Class = predict(RF_Caret_Model_Train, df_test, type = "raw")
+
+confusionMatrix(reference = df_test$Survived,  data = Prediction_Class, mode = "everything", positive="1")
+
+Checking_Df = cbind.data.frame(Prediction_Class, df_test$Sex)
+
+dplyr::filter(Checking_Df, Checking_Df$'df_test$Sex' == "male")
+
+#ROC Curve
+Reference = df_test
+
+Reference$Prob = Prediction_Prob$'1'
+
+
+CheckData = ROCR::prediction(Reference$Prob,
+                             Reference$Survived == 1)
+
+ROC_KURVE = performance(CheckData, measure = "tpr", x.measure = "fpr")
+AUC_ROC = performance(CheckData, measure = "auc")@y.values[[1]]
+plot(ROC_KURVE, xlab = "False Positive Rate", ylab = "True Positive Rate", main = "ROC-Curve")
+abline(a = 0, b = 1, col = "red")
+text(0.8, 0.2, paste("AUC:", toString(round(AUC_ROC, digits = 3)), sep = " "))
+#could tune part 7.2 to get a more accurate result.
+```
+
